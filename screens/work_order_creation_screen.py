@@ -13,6 +13,7 @@ from typing import Optional
 
 from pywinauto import findwindows
 from pywinauto.application import Application
+from pywinauto.keyboard import send_keys
 
 from screens.base_screen import BaseScreen
 from screens.navigator_screen import NavigatorScreen
@@ -148,3 +149,61 @@ class WorkOrderCreationScreen(BaseScreen):
         time.sleep(1.5)
         self._discover_from_live_uia()
         return self.is_wo_manager_loaded()
+
+    def click_new_work_order(self) -> bool:
+        """Open the blank WO creation form."""
+        elem = self._get_elem("btnNewWO")
+        if elem is None:
+            return False
+        elem.click_input()
+        time.sleep(0.5)
+        return True
+
+    def enter_customer(self, number: str) -> bool:
+        """Type customer number into the customer lookup field and wait for resolution."""
+        elem = self._get_elem("txtCustomerNumber")
+        if elem is None:
+            return False
+        elem.click_input()
+        send_keys('^a')
+        send_keys(number)
+        time.sleep(0.5)
+        return True
+
+    def enter_unit(self, number: str) -> bool:
+        """Type unit/stock number into the unit field."""
+        elem = self._get_elem("txtUnitNumber")
+        if elem is None:
+            return False
+        elem.click_input()
+        send_keys('^a')
+        send_keys(number)
+        time.sleep(0.3)
+        return True
+
+    def select_wo_type(self, type_name: str) -> bool:
+        """
+        Select WO type from dropdown.
+        type_name: "Customer Pay", "Warranty", or "Internal"
+        """
+        elem = self._get_elem("cmbWOType")
+        if elem is None:
+            return False
+        elem.click_input()
+        time.sleep(0.2)
+        send_keys(type_name[:3])
+        time.sleep(0.2)
+        send_keys('{ENTER}')
+        return True
+
+    def select_technician(self, name: str) -> bool:
+        """Select a technician from the tech dropdown by typing first 3 chars."""
+        elem = self._get_elem("cmbTechnician")
+        if elem is None:
+            return False
+        elem.click_input()
+        time.sleep(0.2)
+        send_keys(name[:3])
+        time.sleep(0.2)
+        send_keys('{ENTER}')
+        return True
