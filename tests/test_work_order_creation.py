@@ -82,3 +82,25 @@ def test_search_by_customer_name(live_work_order_screen):
     live_work_order_screen.navigate_to_work_orders()
     results = live_work_order_screen.search_by_customer("Test")
     assert isinstance(results, list), "search_by_customer() must return a list"
+
+
+@pytest.mark.functional
+def test_print_customer_copy(live_work_order_screen):
+    """GA: Confirm WO PDF printouts — customer copy triggers a print/viewer window."""
+    live_work_order_screen.navigate_to_work_orders()
+    live_work_order_screen.click_new_work_order()
+    live_work_order_screen.enter_customer("10001")
+    live_work_order_screen.save_work_order()
+    result = live_work_order_screen.print_customer_copy()
+    assert result is True, "print_customer_copy() should return True when a print/PDF window appears"
+
+
+@pytest.mark.functional
+def test_print_shop_copy(live_work_order_screen):
+    """GA: Confirm WO PDF printouts — shop copy triggers a print/viewer window."""
+    live_work_order_screen.navigate_to_work_orders()
+    live_work_order_screen.click_new_work_order()
+    live_work_order_screen.enter_customer("10001")
+    live_work_order_screen.save_work_order()
+    result = live_work_order_screen.print_shop_copy()
+    assert result is True, "print_shop_copy() should return True when a print/PDF window appears"

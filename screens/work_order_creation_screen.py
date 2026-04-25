@@ -313,3 +313,41 @@ class WorkOrderCreationScreen(BaseScreen):
             field.click_input()
             send_keys('^a{DELETE}')
             self._run_search()
+
+    def _wait_for_print_window(self, title_re: str, timeout: float = 5.0) -> bool:
+        """
+        Poll for a new window matching title_re to appear (G2 renders PDFs to a viewer window).
+        Returns True if the window appears within timeout seconds.
+        """
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                windows = findwindows.find_windows(title_re=title_re)
+                if windows:
+                    return True
+            except Exception:
+                pass
+            time.sleep(0.3)
+        return False
+
+    def print_customer_copy(self) -> bool:
+        """
+        Click the Print Customer button and verify a print/PDF window appears.
+        Window title must contain "Customer", "Print", or "Report".
+        """
+        elem = self._get_elem("btnPrintCustomer")
+        if elem is None:
+            return False
+        elem.click_input()
+        return self._wait_for_print_window(r".*(Customer|Print|Report).*")
+
+    def print_shop_copy(self) -> bool:
+        """
+        Click the Print Shop button and verify a print/PDF window appears.
+        Window title must contain "Shop", "Print", or "Report".
+        """
+        elem = self._get_elem("btnPrintShop")
+        if elem is None:
+            return False
+        elem.click_input()
+        return self._wait_for_print_window(r".*(Shop|Print|Report).*")
