@@ -13,14 +13,17 @@ from typing import Optional
 
 from pywinauto import findwindows
 from pywinauto.application import Application
-from pywinauto.keyboard import send_keys
 
 from screens.base_screen import BaseScreen
-from screens.navigator_screen import NavigatorScreen
 from core.element import Element, UIAProperty
 
 
 class WorkOrderCreationScreen(BaseScreen):
+    """
+    G2 Work Order Creation Screen page object.
+    Handles interactions with the Work Order Manager window and WO creation form.
+    Supports dual-mode initialization: live UIA discovery or manual element setup.
+    """
 
     WINDOW_TITLE_RE = r".*Work Order.*"
 
@@ -113,7 +116,7 @@ class WorkOrderCreationScreen(BaseScreen):
             root.add_child(elem)
         self.set_root_element(root)
 
-    def _get_elem(self, auto_id: str):
+    def _get_elem(self, auto_id: str) -> Optional[object]:
         elem = self._found_elements.get(auto_id)
         if elem is None:
             print(f"Warning: element '{auto_id}' not in discovered set")
