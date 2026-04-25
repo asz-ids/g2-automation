@@ -6,7 +6,6 @@ Prints all UIA element IDs found in that window.
 import sys
 sys.path.insert(0, r'E:\G2 Desktop Automation')
 
-import time
 from pywinauto import findwindows
 from pywinauto.application import Application
 
@@ -20,7 +19,7 @@ TITLE_PATTERNS = [
 def scan_window(title_re: str):
     windows = findwindows.find_windows(title_re=title_re)
     if not windows:
-        return None, []
+        return None, None
     app = Application(backend='uia').connect(handle=windows[0])
     win = app.window()
     return win.window_text(), win
@@ -31,9 +30,21 @@ def print_element_tree(elem, depth=0, max_depth=5, found=None):
     if depth > max_depth:
         return found
     try:
-        auto_id = elem.automation_id() if callable(getattr(elem, 'automation_id', None)) else getattr(elem, 'automation_id', '')
-        ctrl_type = elem.element_info.control_type if hasattr(elem, 'element_info') else ''
-        title = elem.window_text() if hasattr(elem, 'window_text') else ''
+        try:
+            auto_id = elem.automation_id() if callable(getattr(elem, 'automation_id', None)) else getattr(elem, 'automation_id', '')
+        except Exception:
+            auto_id = ''
+
+        try:
+            ctrl_type = elem.element_info.control_type
+        except Exception:
+            ctrl_type = ''
+
+        try:
+            title = elem.window_text()
+        except Exception:
+            title = ''
+
         indent = "  " * depth
         line = f"{indent}auto_id={repr(auto_id)!s:<35} ctrl={ctrl_type!s:<15} title={repr(title)}"
         print(line)
