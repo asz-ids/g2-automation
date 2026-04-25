@@ -15,6 +15,7 @@ from pywinauto import findwindows
 from pywinauto.application import Application
 
 from screens.base_screen import BaseScreen
+from screens.navigator_screen import NavigatorScreen
 from core.element import Element, UIAProperty
 
 
@@ -130,3 +131,20 @@ class WorkOrderCreationScreen(BaseScreen):
             except Exception:
                 pass
         return self.verify_text_present("Work Order")
+
+    def navigate_to_work_orders(self) -> bool:
+        """
+        Navigate from the G2 Navigator to Service → Work Orders.
+        Reconnects UIA discovery to the newly opened WO Manager window.
+        """
+        navigator = NavigatorScreen()
+        if not navigator.click_menu_button("Service"):
+            print("[X] Could not click Service menu in Navigator")
+            return False
+        time.sleep(0.5)
+        if not navigator.click_explorer_bar_button("Work Orders"):
+            print("[X] Could not click 'Work Orders' explorer bar button")
+            return False
+        time.sleep(1.5)
+        self._discover_from_live_uia()
+        return self.is_wo_manager_loaded()

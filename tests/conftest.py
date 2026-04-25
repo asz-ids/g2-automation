@@ -41,6 +41,30 @@ def login_screen():
     screen.screenshots.clear_cache() if hasattr(screen.screenshots, 'clear_cache') else None
 
 
+@pytest.fixture
+def navigator_screen():
+    """Fixture providing a NavigatorScreen connected to the live G2 Navigator."""
+    from screens.navigator_screen import NavigatorScreen
+    screen = NavigatorScreen(discover_from_window=True)
+    yield screen
+
+
+@pytest.fixture
+def work_order_screen():
+    """Fixture providing WorkOrderCreationScreen in manual mode (no live G2 required for unit tests)."""
+    from screens.work_order_creation_screen import WorkOrderCreationScreen
+    screen = WorkOrderCreationScreen(discover_from_uia=False)
+    yield screen
+
+
+@pytest.fixture
+def live_work_order_screen():
+    """Fixture providing WorkOrderCreationScreen connected to live G2 (requires G2 open at WO Manager)."""
+    from screens.work_order_creation_screen import WorkOrderCreationScreen
+    screen = WorkOrderCreationScreen(discover_from_uia=True)
+    yield screen
+
+
 @pytest.fixture(scope="session")
 def test_config():
     """Fixture providing test configuration."""
