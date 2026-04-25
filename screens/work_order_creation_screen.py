@@ -207,3 +207,54 @@ class WorkOrderCreationScreen(BaseScreen):
         time.sleep(0.2)
         send_keys('{ENTER}')
         return True
+
+    def add_comment(self, text: str) -> bool:
+        """Type text into the WO comments field."""
+        elem = self._get_elem("txtComments")
+        if elem is None:
+            return False
+        elem.click_input()
+        send_keys(text)
+        return True
+
+    def save_work_order(self) -> str:
+        """
+        Click Save. Waits up to 3s for the assigned WO number to appear.
+        Returns the WO number string, or "" if save failed.
+        """
+        elem = self._get_elem("btnSaveWO")
+        if elem is None:
+            return ""
+        elem.click_input()
+        for _ in range(30):
+            time.sleep(0.1)
+            wo_num = self.get_current_wo_number()
+            if wo_num:
+                return wo_num
+        return ""
+
+    def get_current_wo_number(self) -> str:
+        """Read the assigned WO number from the label element."""
+        elem = self._get_elem("lblWONumber")
+        if elem is None:
+            return ""
+        try:
+            text = elem.window_text().strip()
+            return text
+        except Exception:
+            return ""
+
+    def is_wo_saved_successfully(self) -> bool:
+        """Returns True if a WO number is assigned (non-empty)."""
+        return len(self.get_current_wo_number()) > 0
+
+    def get_wo_status(self) -> str:
+        """
+        Returns current WO status text by checking screen for known status values.
+        Returns "Open", "Closed", or "Unknown".
+        """
+        if self.verify_text_present("Open"):
+            return "Open"
+        if self.verify_text_present("Closed"):
+            return "Closed"
+        return "Unknown"
