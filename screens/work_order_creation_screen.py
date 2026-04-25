@@ -104,6 +104,12 @@ class WorkOrderCreationScreen(BaseScreen):
         recurse(window_elem, 0)
 
     def _setup_elements_manual(self) -> None:
+        """
+        Build a placeholder Element tree for offline inspection and unit testing.
+        NOTE: The child elements produced here are framework Element stubs, not live
+        pywinauto wrappers. Calling click_input() or window_text() on them will raise
+        AttributeError. Use discover_from_uia=True for interaction tests.
+        """
         root = Element(
             name="WorkOrderForm",
             properties=UIAProperty(control_type="Window", title="Work Order", auto_id="WorkOrderForm")
@@ -209,24 +215,25 @@ class WorkOrderCreationScreen(BaseScreen):
         return True
 
     def add_comment(self, text: str) -> bool:
-        """Type text into the WO comments field."""
+        """Clear and type text into the WO comments field."""
         elem = self._get_elem("txtComments")
         if elem is None:
             return False
         elem.click_input()
+        send_keys('^a')
         send_keys(text)
         return True
 
     def save_work_order(self) -> str:
         """
-        Click Save. Waits up to 3s for the assigned WO number to appear.
+        Click Save. Waits up to 10s for the assigned WO number to appear.
         Returns the WO number string, or "" if save failed.
         """
         elem = self._get_elem("btnSaveWO")
         if elem is None:
             return ""
         elem.click_input()
-        for _ in range(30):
+        for _ in range(100):
             time.sleep(0.1)
             wo_num = self.get_current_wo_number()
             if wo_num:

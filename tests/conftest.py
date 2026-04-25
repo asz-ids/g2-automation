@@ -42,14 +42,6 @@ def login_screen():
 
 
 @pytest.fixture
-def navigator_screen():
-    """Fixture providing a NavigatorScreen connected to the live G2 Navigator."""
-    from screens.navigator_screen import NavigatorScreen
-    screen = NavigatorScreen(discover_from_window=True)
-    yield screen
-
-
-@pytest.fixture
 def work_order_screen():
     """Fixture providing WorkOrderCreationScreen in manual mode (no live G2 required for unit tests)."""
     from screens.work_order_creation_screen import WorkOrderCreationScreen
