@@ -314,7 +314,7 @@ class WorkOrderCreationScreen(BaseScreen):
             send_keys('^a{DELETE}')
             self._run_search()
 
-    def _wait_for_print_window(self, title_re: str, timeout: float = 5.0) -> bool:
+    def _wait_for_print_window(self, title_re: str, timeout: float = 10.0) -> bool:
         """
         Poll for a new window matching title_re to appear (G2 renders PDFs to a viewer window).
         Returns True if the window appears within timeout seconds.
@@ -325,8 +325,8 @@ class WorkOrderCreationScreen(BaseScreen):
                 windows = findwindows.find_windows(title_re=title_re)
                 if windows:
                     return True
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Warning: find_windows error during print poll: {e}")
             time.sleep(0.3)
         return False
 
