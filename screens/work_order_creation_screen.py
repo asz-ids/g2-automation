@@ -258,3 +258,58 @@ class WorkOrderCreationScreen(BaseScreen):
         if self.verify_text_present("Closed"):
             return "Closed"
         return "Unknown"
+
+    def _run_search(self) -> None:
+        """Submit the current search by clicking btnSearch or pressing Enter."""
+        btn = self._get_elem("btnSearch")
+        if btn:
+            btn.click_input()
+        else:
+            send_keys('{ENTER}')
+        time.sleep(0.8)
+
+    def search_by_wo_number(self, wo_num: str) -> bool:
+        """
+        Type wo_num into the search field and submit.
+        Returns True if the WO number appears in the results.
+        """
+        field = self._get_elem("txtWOSearch")
+        if field is None:
+            return False
+        field.click_input()
+        send_keys('^a')
+        send_keys(wo_num)
+        self._run_search()
+        return self.verify_text_present(wo_num)
+
+    def search_by_customer(self, name: str) -> list:
+        """
+        Search by customer name. Returns a list of WO numbers visible in the results grid.
+        Returns an empty list if no results or the grid cannot be read.
+        """
+        field = self._get_elem("txtWOSearch")
+        if field is None:
+            return []
+        field.click_input()
+        send_keys('^a')
+        send_keys(name)
+        self._run_search()
+        results = []
+        lst = self._get_elem("lstWorkOrders")
+        if lst:
+            try:
+                for item in lst.items():
+                    text = item.window_text().strip()
+                    if text:
+                        results.append(text)
+            except Exception:
+                pass
+        return results
+
+    def clear_search(self) -> None:
+        """Clear the search field and reset results."""
+        field = self._get_elem("txtWOSearch")
+        if field:
+            field.click_input()
+            send_keys('^a{DELETE}')
+            self._run_search()

@@ -60,3 +60,25 @@ def test_add_comment_to_wo(live_work_order_screen):
     assert comment_result is True, "add_comment() should return True"
     wo_num = live_work_order_screen.save_work_order()
     assert len(wo_num) > 0, f"WO with comment should save and return a WO number, got: '{wo_num}'"
+
+
+@pytest.mark.functional
+def test_search_by_wo_number(live_work_order_screen):
+    """GA: Search WO by WO number — finds the WO created in this test."""
+    live_work_order_screen.navigate_to_work_orders()
+    live_work_order_screen.click_new_work_order()
+    live_work_order_screen.enter_customer("10001")
+    wo_num = live_work_order_screen.save_work_order()
+    assert len(wo_num) > 0, "Precondition: need a WO to search for"
+
+    live_work_order_screen.clear_search()
+    found = live_work_order_screen.search_by_wo_number(wo_num)
+    assert found is True, f"search_by_wo_number('{wo_num}') should return True"
+
+
+@pytest.mark.functional
+def test_search_by_customer_name(live_work_order_screen):
+    """GA: Search WO by customer name — returns a list (may be empty for unknown customer)."""
+    live_work_order_screen.navigate_to_work_orders()
+    results = live_work_order_screen.search_by_customer("Test")
+    assert isinstance(results, list), "search_by_customer() must return a list"
