@@ -147,10 +147,12 @@ def clear_search()
 
 ```python
 def print_customer_copy()
-    # Clicks btnPrintCustomer, waits for print dialog or PDF viewer
+    # Clicks btnPrintCustomer, verifies success by waiting for a new window
+    # whose title contains "Customer" or "Print" (G2 renders PDFs to a viewer window)
 
 def print_shop_copy()
-    # Clicks btnPrintShop, waits for print dialog or PDF viewer
+    # Clicks btnPrintShop, verifies success by waiting for a new window
+    # whose title contains "Shop" or "Print"
 ```
 
 ### Verification
@@ -170,7 +172,7 @@ def get_wo_status() -> str
 
 ## Test Plan (`tests/test_work_order_creation.py`)
 
-One test per GA checklist row. All tests share a session-scoped `logged_in_navigator` fixture that handles login and navigates to the Navigator screen.
+One test per GA checklist row. All tests share a session-scoped `logged_in_navigator` fixture (handles login, leaves the app at the Navigator screen). Each test calls `navigate_to_work_orders()` itself at the start so tests are independently runnable.
 
 | Test | GA Feature |
 |------|-----------|

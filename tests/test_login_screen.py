@@ -49,7 +49,6 @@ class TestLoginScreen:
         # Enter credentials
         login_screen.enter_username("aqadir.ids")
         login_screen.enter_password("Aqadir2801")
-        # login_screen.enter_domain("DOMAIN")
         
         # Click login
         login_screen.click_login()

@@ -11,7 +11,7 @@ UIA Properties Reference (update after running scan_service_work_orders.py):
 import time
 from typing import Optional
 
-from pywinauto import findwindows
+from pywinauto import Desktop, findwindows
 from pywinauto.application import Application
 from pywinauto.keyboard import send_keys
 
@@ -62,8 +62,8 @@ class WorkOrderCreationScreen(BaseScreen):
         try:
             windows = findwindows.find_windows(title_re=self.WINDOW_TITLE_RE)
             if windows:
-                self._uia_app = Application(backend='uia').connect(handle=windows[0])
-                self._uia_window = self._uia_app.window()
+                # Use Desktop() to avoid OpenProcess (fails with UIPI when G2 is elevated)
+                self._uia_window = Desktop(backend='uia').window(handle=windows[0])
                 self._search_for_uia_elements(self._uia_window)
                 root = Element(
                     name="WorkOrderForm",
@@ -136,25 +136,35 @@ class WorkOrderCreationScreen(BaseScreen):
                 self._uia_window.window_text()
                 return True
             except Exception:
-                pass
-        return self.verify_text_present("Work Order")
+                self._uia_window = None
+        # Use findwindows — avoids the OCR false-positive from VS Code title bar
+        return bool(findwindows.find_windows(title_re=self.WINDOW_TITLE_RE))
 
     def navigate_to_work_orders(self) -> bool:
         """
         Navigate from the G2 Navigator to Service → Work Orders.
-        Reconnects UIA discovery to the newly opened WO Manager window.
+        Skips navigation if WO Manager is already loaded.
         """
+        # Already there — rediscover elements and return
+        if self.is_wo_manager_loaded():
+            self._discover_from_live_uia()
+            return True
+
         navigator = NavigatorScreen()
+        # Click Service tab — log failure but keep going (click may still work)
         if not navigator.click_menu_button("Service"):
-            print("[X] Could not click Service menu in Navigator")
-            return False
+            print("[!] Service menu click reported failure — attempting Work Orders anyway")
         time.sleep(0.5)
-        if not navigator.click_explorer_bar_button("Work Orders"):
-            print("[X] Could not click 'Work Orders' explorer bar button")
-            return False
+
+        navigator.click_explorer_bar_button("Work Orders")
         time.sleep(1.5)
         self._discover_from_live_uia()
-        return self.is_wo_manager_loaded()
+
+        if self.is_wo_manager_loaded():
+            return True
+
+        print("[X] WO Manager did not load after navigation attempt")
+        return False
 
     def click_new_work_order(self) -> bool:
         """Open the blank WO creation form."""

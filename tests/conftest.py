@@ -17,18 +17,8 @@ G2_EXECUTABLE = r"C:\IDSASTRA\APPS\G2\G2CLIENT\IDS.G2.AppOne.exe"
 
 @pytest.fixture(scope="session", autouse=True)
 def open_g2_application():
-    """Fixture that opens the G2 application at the start of test session."""
-    try:
-        print("\n[Setup] Opening G2 application...")
-        subprocess.Popen(G2_EXECUTABLE)
-        time.sleep(5)  # Wait for application to start and load
-        print("[Setup] G2 application opened successfully")
-    except Exception as e:
-        print(f"[Setup] Warning: Could not open G2 application: {e}")
-    
+    """Session fixture — G2 launch/login is handled by ensure_g2_running in each test file."""
     yield
-    
-    # Cleanup - application stays running (user can close it manually)
     print("\n[Teardown] Test session complete. G2 application remains running.")
 
 

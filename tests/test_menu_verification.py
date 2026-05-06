@@ -23,7 +23,7 @@ class TestMenuVerification:
         'Parts'
     ]
     
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(autouse=False)
     def setup_and_cleanup(self):
         """Setup before test, cleanup after"""
         # Give G2 time to fully load if app was just launched
@@ -148,7 +148,3 @@ class TestMenuNavigation:
         
         menu_items = navigator.get_all_menu_items()
         assert 'Accounting' in menu_items, "Accounting menu should be available"
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

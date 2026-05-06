@@ -219,7 +219,11 @@ class LoginScreen(BaseScreen):
                 
                 # Search for and cache the actual elements
                 self._search_for_uia_elements(window)
-                
+
+                # Populate Element tree from discovered pywinauto elements
+                # so Locator.find() / find_all() can traverse children
+                self._populate_element_tree(root)
+
                 self.set_root_element(root)
                 print(f"[OK] Discovered live G2 application with {len(self._found_elements)} elements")
             else:
@@ -265,6 +269,37 @@ class LoginScreen(BaseScreen):
             search_recursive(window_elem, 0, 2)  # Very strict max_depth of 2
         except Exception as e:
             print(f"Warning: Element search had issues: {e}")
+
+    def _populate_element_tree(self, root: Element) -> None:
+        """Convert discovered pywinauto elements into Element children of root."""
+        for auto_id, uia_elem in self._found_elements.items():
+            try:
+                try:
+                    ctrl_type = uia_elem.friendly_class_name()
+                except Exception:
+                    ctrl_type = None
+                try:
+                    title = uia_elem.window_text()
+                except Exception:
+                    title = None
+                try:
+                    class_name = uia_elem.element_info.class_name
+                except Exception:
+                    class_name = None
+
+                elem = Element(
+                    name=auto_id,
+                    properties=UIAProperty(
+                        control_type=ctrl_type,
+                        auto_id=auto_id,
+                        title=title,
+                        class_name=class_name
+                    )
+                )
+                elem.set_runtime_data("uia_element", uia_elem)
+                root.add_child(elem)
+            except Exception:
+                pass
 
     def enter_username(self, username: str) -> bool:
         """

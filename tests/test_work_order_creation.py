@@ -1,6 +1,73 @@
 # tests/test_work_order_creation.py
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+import time
+import ctypes
 import pytest
+from pywinauto import findwindows
+from pywinauto.keyboard import send_keys
 from screens.work_order_creation_screen import WorkOrderCreationScreen
+
+G2_EXE = r"C:\IDSASTRA\APPS\G2\G2CLIENT\IdsG2Client.exe"
+G2_USERNAME = "aqadir.ids"
+G2_PASSWORD = "Aqadir2801"
+NAV_PATTERN = r".*Navigator.*"
+
+
+def _navigator_open():
+    return bool(findwindows.find_windows(title_re=NAV_PATTERN))
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_g2_running():
+    """Launch G2 and log in if the Navigator is not already open."""
+    if _navigator_open():
+        print("\n  G2 Navigator already open — skipping launch/login")
+        return
+
+    # Launch if no login window is visible yet
+    if not findwindows.find_windows(title="G2 Login"):
+        print("\n  Launching G2...")
+        result = ctypes.windll.shell32.ShellExecuteW(
+            None, "open", G2_EXE, None, os.path.dirname(G2_EXE), 1
+        )
+        if result <= 32:
+            pytest.fail(f"ShellExecute failed (code {result}) — cannot launch G2")
+
+    # Wait for login window
+    login_hwnd = None
+    for i in range(30):
+        handles = findwindows.find_windows(title="G2 Login")
+        if handles:
+            login_hwnd = handles[0]
+            print(f"\n  G2 Login window found after {i}s")
+            break
+        time.sleep(1)
+    if not login_hwnd:
+        pytest.fail("G2 Login window did not appear after 30s")
+
+    ctypes.windll.user32.ShowWindow(login_hwnd, 9)
+    ctypes.windll.user32.SetForegroundWindow(login_hwnd)
+    time.sleep(0.5)
+
+    # Enter credentials using keyboard input — avoids COM/UIA which can crash inside pytest
+    try:
+        ctypes.windll.user32.SetForegroundWindow(login_hwnd)
+        time.sleep(0.5)
+        send_keys(f'{G2_USERNAME}{{TAB}}{G2_PASSWORD}{{ENTER}}')
+        print("  Credentials submitted — waiting for Navigator...")
+    except Exception as e:
+        pytest.fail(f"Could not submit login credentials: {e}")
+
+    # Wait for Navigator to appear after login
+    for i in range(60):
+        if _navigator_open():
+            print(f"  Navigator appeared after {i}s")
+            return
+        time.sleep(1)
+    pytest.fail("G2 Navigator did not appear within 60s after login")
 
 
 def test_import():
