@@ -69,28 +69,124 @@ def step_g2_running(context):
 
 # ── Navigation ────────────────────────────────────────────────────────────────
 
-@when('I navigate to "{menu_item}" from the Parts menu')
-def step_navigate(context, menu_item):
+# Maps top-level menu names to their Navigator button auto_ids
+_MENU_AUTO_ID = {
+    "Parts":   "btnParts",
+    "Sales":   "btnSales",
+    "Service": "btnService",
+    "Admin":   "btnAdmin",
+}
+
+# Maps sub-menu item names to their Navigator button auto_ids
+_ITEM_AUTO_ID = {
+    "Take AR Payments": "btnTakeARPayments",
+    "Unit Inventory":   "btnUnitInventory",
+    "Maintain Units":   "btnMaintainUnits",
+}
+
+
+class _POINT(ctypes.Structure):
+    _fields_ = [('x', ctypes.c_long), ('y', ctypes.c_long)]
+
+BM_CLICK            = 0x00F5
+WM_LBUTTONDOWN      = 0x0201
+WM_LBUTTONUP        = 0x0202
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP   = 0x0004
+
+
+def _nav_click(nav_win, label):
+    """
+    Click a Navigator button by trying progressively lower-level mechanisms.
+
+    Buttons with a known auto_id work via click_input().
+    Buttons without auto_id (e.g. Maintain Units inside UltraExplorerBar) have a
+    real WinForms HWND but no title — we fall through several strategies:
+      A) UIA InvokePattern  — bypasses UIPI, most reliable for accessibility
+      B) BM_CLICK (sync)    — standard Win32 button message via SendMessageW
+      C) WM_LBUTTONDOWN/UP  — raw mouse messages via SendMessageW (sync)
+      D) Hardware mouse_event — SetCursorPos + mouse_event LEFTDOWN/LEFTUP
+    """
+    # 1. Try known auto_id
+    auto_id = _ITEM_AUTO_ID.get(label)
+    if auto_id:
+        try:
+            nav_win.child_window(auto_id=auto_id, control_type='Button').click_input()
+            print(f"  [OK] Clicked '{label}' via auto_id={auto_id!r}")
+            return
+        except Exception:
+            pass
+
+    # 2. Find UIA element and get screen centre
+    btn = nav_win.child_window(title=label, control_type='Button')
+    btn.wait('exists visible', timeout=5)
+    rect = btn.rectangle()
+    cx   = (rect.left + rect.right)  // 2
+    cy   = (rect.top  + rect.bottom) // 2
+
+    # Bring Navigator to foreground before any click attempt
+    ctypes.windll.user32.SetForegroundWindow(nav_win.handle)
+    time.sleep(0.15)
+
+    # A. UIA InvokePattern — crosses UIPI elevation boundary via COM accessibility
+    try:
+        btn.invoke()
+        print(f"  [OK] Invoked '{label}' via UIA InvokePattern")
+        return
+    except Exception as e:
+        print(f"  [--] invoke() failed for '{label}': {e}")
+
+    # B. BM_CLICK via SendMessageW — synchronous, triggers WinForms Click event
+    btn_hwnd = ctypes.windll.user32.WindowFromPoint(_POINT(cx, cy))
+    print(f"  HWND at ({cx},{cy}): {btn_hwnd}")
+    if btn_hwnd:
+        ret = ctypes.windll.user32.SendMessageW(btn_hwnd, BM_CLICK, 0, 0)
+        print(f"  [OK] SendMessageW(BM_CLICK) → {ret} for '{label}'")
+        return
+
+    # C. WM_LBUTTONDOWN/UP via SendMessageW (sync) with client coords
+    if btn_hwnd:
+        pt = _POINT(cx, cy)
+        ctypes.windll.user32.ScreenToClient(btn_hwnd, ctypes.byref(pt))
+        lparam = (pt.y << 16) | (pt.x & 0xFFFF)
+        ctypes.windll.user32.SendMessageW(btn_hwnd, WM_LBUTTONDOWN, 1, lparam)
+        time.sleep(0.05)
+        ctypes.windll.user32.SendMessageW(btn_hwnd, WM_LBUTTONUP,   0, lparam)
+        print(f"  [OK] SendMessageW(WM_LBUTTONDOWN/UP) to HWND {btn_hwnd} for '{label}'")
+        return
+
+    # D. Hardware mouse_event — last resort, bypasses window messages entirely
+    ctypes.windll.user32.SetCursorPos(cx, cy)
+    time.sleep(0.05)
+    ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+    time.sleep(0.05)
+    ctypes.windll.user32.mouse_event(MOUSEEVENTF_LEFTUP,   0, 0, 0, 0)
+    print(f"  [OK] Hardware mouse_event click at ({cx},{cy}) for '{label}'")
+
+
+@when('I navigate to "{menu_item}" from the "{menu_name}" menu')
+def step_navigate(context, menu_item, menu_name):
     s = context.s
     nav_win = Desktop(backend='uia').window(handle=s.nav_hwnd)
-    nav_win.child_window(auto_id='btnParts', control_type='Button').click_input()
+
+    # Click the top-level menu — try toolbar auto_id first, fall back to explorer bar
+    menu_auto_id = _MENU_AUTO_ID.get(menu_name)
+    if menu_auto_id:
+        try:
+            nav_win.child_window(auto_id=menu_auto_id, control_type='Button').click_input()
+        except Exception:
+            _nav_click(nav_win, menu_name)
+    else:
+        _nav_click(nav_win, menu_name)
     time.sleep(2)
 
+    # Snapshot existing AR windows (needed by the AR payment workflow)
     s.existing_ar_handles = set(
         findwindows.find_windows(title_re=".*Accounts Receivable.*")
     )
 
-    auto_id_map = {"Take AR Payments": "btnTakeARPayments"}
-    auto_id = auto_id_map.get(menu_item)
-    clicked = False
-    if auto_id:
-        try:
-            nav_win.child_window(auto_id=auto_id, control_type='Button').click_input()
-            clicked = True
-        except Exception:
-            pass
-    if not clicked:
-        nav_win.child_window(title=menu_item, control_type='Button').click_input()
+    # Click the sub-menu item via explorer bar
+    _nav_click(nav_win, menu_item)
 
 
 # ── Window assertions ─────────────────────────────────────────────────────────
@@ -135,6 +231,26 @@ def step_window_opens(context, window_title):
         assert hwnd, "IDSPay window did not appear within 30s"
         s.idspay_hwnd = hwnd
 
+    elif window_title == "Maintain Units":
+        for _ in range(30):
+            h = findwindows.find_windows(title_re=r".*Maintain Units.*")
+            if h:
+                hwnd = h[0]
+                break
+            time.sleep(1)
+        assert hwnd, "Maintain Units window did not open within 30s"
+        s.unit_inventory_hwnd = hwnd
+
+    elif "Inventory" in window_title and "Sunset Marine" in window_title:
+        for _ in range(30):
+            h = findwindows.find_windows(title_re=r".*Inventory.*Sunset Marine.*")
+            if h:
+                hwnd = h[0]
+                break
+            time.sleep(1)
+        assert hwnd, f'"{window_title}" window did not open within 30s'
+        s.unit_inventory_hwnd = hwnd
+
     else:
         for _ in range(30):
             h = findwindows.find_windows(title_re=f".*{window_title}.*")
@@ -143,6 +259,8 @@ def step_window_opens(context, window_title):
                 break
             time.sleep(1)
         assert hwnd, f'"{window_title}" window did not open within 30s'
+        # Store on state so subsequent steps can reference any window by name
+        setattr(s, f"{window_title.lower().replace(' ', '_')}_hwnd", hwnd)
 
     _activate(hwnd)
 
@@ -316,6 +434,7 @@ def step_click_tab(context, tab_name):
 @when('I click "{button_label}"')
 def step_click_label(context, button_label):
     s = context.s
+
     if button_label == "PROCESS PAYMENT":
         assert s.idspay_hwnd, "IDSPay window handle not set"
         btn = _find_process_payment_btn(s.idspay_hwnd, timeout=15)
@@ -330,11 +449,43 @@ def step_click_label(context, button_label):
                 coords=(int(w * 0.50), int(h * 0.82))
             )
             print("  Clicked PROCESS PAYMENT via coordinate fallback")
-    else:
-        raise AssertionError(f'No handler for button "{button_label}"')
+        return
+
+    # Generic Navigator button — same strategy as Take AR Payments in ar_payment_workflow.py
+    nav_win = Desktop(backend='uia').window(handle=s.nav_hwnd)
+    _nav_click(nav_win, button_label)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _find_by_title(root_info, title, timeout=5):
+    """
+    Walk the full UIA element tree under root_info and return the first element
+    whose name matches title (case-sensitive). No control_type filter so it works
+    for Infragistics tree items that may not map cleanly to 'Button'.
+    """
+    import time as _time
+    deadline = _time.time() + timeout
+
+    def _walk(info):
+        try:
+            if info.name == title:
+                return info
+            for child in info.children():
+                result = _walk(child)
+                if result:
+                    return result
+        except Exception:
+            pass
+        return None
+
+    while _time.time() < deadline:
+        result = _walk(root_info)
+        if result:
+            return result
+        _time.sleep(0.5)
+    return None
+
 
 def _activate(hwnd):
     ctypes.windll.user32.ShowWindow(hwnd, 9)

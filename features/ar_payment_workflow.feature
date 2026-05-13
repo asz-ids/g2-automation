@@ -4,9 +4,9 @@ Feature: AR Payment
   Background:
     Given G2 is running and the Navigator is open
 
-  @smoke
+
   Scenario: Pay invoice for customer 4268
-    When I navigate to "Take AR Payments" from the Parts menu
+    When I navigate to "Take AR Payments" from the "Parts" menu
     Then the "Accounts Receivable" window opens
 
     When I enter customer number "4268"
