@@ -78,6 +78,43 @@ def _find_child_by_title(parent_hwnd, title):
     return found[0] if found else None
 
 
+def _find_child_by_class_and_title(parent_hwnd, class_name, title):
+    """Find the first child whose Win32 class name AND window text both match."""
+    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    title_buf = ctypes.create_unicode_buffer(512)
+    class_buf = ctypes.create_unicode_buffer(512)
+    found = []
+
+    def _cb(hwnd, _):
+        ctypes.windll.user32.GetWindowTextW(hwnd, title_buf, 512)
+        ctypes.windll.user32.GetClassNameW(hwnd, class_buf, 512)
+        if title_buf.value.strip() == title and class_name in class_buf.value:
+            found.append(hwnd)
+            return False
+        return True
+
+    ctypes.windll.user32.EnumChildWindows(parent_hwnd, WNDENUMPROC(_cb), 0)
+    return found[0] if found else None
+
+
+def _collect_children_by_class(parent_hwnd, class_name):
+    """Return titles of all child windows whose class name contains class_name."""
+    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    title_buf = ctypes.create_unicode_buffer(512)
+    class_buf = ctypes.create_unicode_buffer(512)
+    titles = []
+
+    def _cb(hwnd, _):
+        ctypes.windll.user32.GetClassNameW(hwnd, class_buf, 512)
+        if class_name in class_buf.value:
+            ctypes.windll.user32.GetWindowTextW(hwnd, title_buf, 512)
+            titles.append(repr(title_buf.value.strip()))
+        return True
+
+    ctypes.windll.user32.EnumChildWindows(parent_hwnd, WNDENUMPROC(_cb), 0)
+    return titles
+
+
 def _click_hwnd(hwnd):
     """Send WM_LBUTTONDOWN/UP to hwnd — works for elevated WinForms controls."""
     ctypes.windll.user32.SendMessageW(hwnd, WM_LBUTTONDOWN, 0, 0)
@@ -146,25 +183,32 @@ def step_check_open_wos(context):
 
     # Try UIA first — direct lookup by automation_id avoids EnumChildWindows
     # depth limitations on deeply nested WinForms controls.
-    uia_win = Desktop(backend="uia").window(handle=sm_hwnd)
-    try:
-        chk = uia_win.child_window(
-            title="Open WO's",
-            class_name="WindowsForms10.BUTTON.app.0.392a42d_r8_ad1",
-        )
-        chk.click_input()
-        time.sleep(0.3)
-        return
-    except Exception:
-        pass
+    # Win32 backend is the most reliable for WinForms — uses FindWindowEx,
+    # no COM/UIA involved.  class_name narrows the search to BUTTON controls.
+    win32_win = Desktop(backend="win32").window(handle=sm_hwnd)
+    chk_class = "WindowsForms10.BUTTON.app.0.392a42d_r8_ad1"
+    for title_try in ("Open WO's", "Open WO’s"):  # straight + curly apostrophe
+        try:
+            chk = win32_win.child_window(title=title_try, class_name=chk_class)
+            chk.click_input()
+            time.sleep(0.3)
+            return
+        except Exception:
+            pass
 
-    # Fallback: find by window caption in the Win32 hierarchy.
-    chk_hwnd = _find_child_by_title(sm_hwnd, "Open WO's")
-    assert chk_hwnd, (
-        "Could not find the 'Open WO\\'s' checkbox "
-        "(class=WindowsForms10.BUTTON.app.0.392a42d_r8_ad1) "
-        "inside the Service Manager window"
-    )
+    # Fallback: send WM_LBUTTONDOWN/UP directly to the HWND.
+    chk_hwnd = _find_child_by_class_and_title(sm_hwnd, chk_class, "Open WO's")
+    if chk_hwnd is None:
+        chk_hwnd = _find_child_by_class_and_title(sm_hwnd, chk_class, "Open WO’s")
+
+    if chk_hwnd is None:
+        # Diagnostic: list all BUTTON-class child titles to find the real caption.
+        all_btn_titles = _collect_children_by_class(sm_hwnd, chk_class)
+        assert False, (
+            "Could not find 'Open WO\\'s' checkbox.\n"
+            f"BUTTON-class children found: {all_btn_titles}"
+        )
+
     _click_hwnd(chk_hwnd)
 
 
