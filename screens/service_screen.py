@@ -39,10 +39,52 @@ class ServiceScreen(BaseScreen):
     # ------------------------------------------------------------------
 
     def _navigate_and_discover(self) -> bool:
-        raise NotImplementedError("Implement in Task 2")
+        """Click btnService then discover the Service explorer bar buttons."""
+        clicked = self._navigator.click_menu_button("Service")
+        if not clicked:
+            print("[X] ServiceScreen: click_menu_button('Service') failed")
+            return False
+        # Refresh nav_hwnd in case NavigatorScreen reconnected during the click
+        self._nav_hwnd = getattr(self._navigator, "_nav_hwnd", None)
+        return self._discover_explorer_buttons()
 
     def _discover_explorer_buttons(self) -> bool:
-        raise NotImplementedError("Implement in Task 2")
+        """
+        Scan Navigator window descendants for Service explorer bar buttons.
+        Polls up to 3 s (6 x 0.5 s) for the panel to render after navigation.
+        Excludes the five main menu items (Sales, Service, Accounting, Admin, Parts).
+        Returns True if at least one button title is cached.
+        """
+        self._discovered_buttons = []
+        nav_hwnd = getattr(self._navigator, "_nav_hwnd", None)
+        if not nav_hwnd:
+            print("[!] ServiceScreen: nav_hwnd not available — discovery skipped")
+            return False
+
+        for attempt in range(6):
+            try:
+                uia_window = Desktop(backend="uia").window(handle=nav_hwnd)
+                buttons = []
+                for btn in uia_window.descendants(control_type="Button"):
+                    try:
+                        title = btn.window_text().strip()
+                        if title and title not in NavigatorScreen.EXPECTED_MENU_ITEMS:
+                            if title not in buttons:
+                                buttons.append(title)
+                    except Exception:
+                        pass
+                if buttons:
+                    self._discovered_buttons = buttons
+                    print(
+                        f"[OK] Service panel found {len(buttons)} buttons: {buttons}"
+                    )
+                    return True
+            except Exception:
+                pass
+            time.sleep(0.5)
+
+        print("[!] ServiceScreen: no explorer bar buttons found after 3 s")
+        return False
 
     # ------------------------------------------------------------------
     # Public API — to be implemented in Task 3
@@ -73,4 +115,5 @@ class ServiceScreen(BaseScreen):
         raise NotImplementedError("Implement in Task 3")
 
     def rediscover(self) -> bool:
-        raise NotImplementedError("Implement in Task 2")
+        """Re-scan the Service panel explorer bar. Returns True if >=1 button found."""
+        return self._discover_explorer_buttons()
