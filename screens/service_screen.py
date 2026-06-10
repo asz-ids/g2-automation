@@ -39,6 +39,8 @@ class ServiceScreen(BaseScreen):
         if not clicked:
             print("[X] ServiceScreen: click_menu_button('Service') failed")
             return False
+        # G2 creates explorer bar HWNDs asynchronously — wait before scanning.
+        time.sleep(2)
         return self._discover_explorer_buttons()
 
     def _discover_explorer_buttons(self) -> bool:
@@ -58,7 +60,7 @@ class ServiceScreen(BaseScreen):
 
         WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
 
-        for attempt in range(6):
+        for attempt in range(20):  # 20 × 0.5 s = 10 s max (after the 2 s pre-wait)
             found_titles = []
             buf = ctypes.create_unicode_buffer(512)
 
@@ -82,7 +84,7 @@ class ServiceScreen(BaseScreen):
                 print(f"[OK] Service panel found {len(found_titles)} buttons: {found_titles}")
                 return True
 
-            if attempt < 5:
+            if attempt < 19:
                 time.sleep(0.5)
 
         print("[!] ServiceScreen: no explorer bar buttons found after 3 s")
