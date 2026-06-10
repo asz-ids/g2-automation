@@ -91,7 +91,24 @@ class ServiceScreen(BaseScreen):
     # ------------------------------------------------------------------
 
     def go_to(self, section_name: str) -> bool:
-        raise NotImplementedError("Implement in Task 3")
+        """
+        Navigate to a Service sub-section by explorer bar button title.
+
+        Logs a warning if section_name was not found during discovery but still
+        attempts the click — the button may exist even if discovery missed it.
+
+        Args:
+            section_name: Explorer bar button title e.g. "Work Orders"
+
+        Returns:
+            True if the click succeeded, False otherwise
+        """
+        if section_name not in self._discovered_buttons:
+            print(
+                f"[!] ServiceScreen: '{section_name}' not in discovered buttons "
+                f"{self._discovered_buttons} — attempting anyway"
+            )
+        return self._navigator.click_explorer_bar_button(section_name)
 
     def go_to_work_orders(self) -> bool:
         return self.go_to("Work Orders")
@@ -109,10 +126,13 @@ class ServiceScreen(BaseScreen):
         return self.go_to("Doc Manager")
 
     def get_available_sections(self) -> list:
-        raise NotImplementedError("Implement in Task 3")
+        """Return a copy of the discovered explorer bar button titles."""
+        return list(self._discovered_buttons)
 
     def is_section_available(self, name: str) -> bool:
-        raise NotImplementedError("Implement in Task 3")
+        """Case-insensitive check whether a section was found during discovery."""
+        name_lower = name.lower()
+        return any(b.lower() == name_lower for b in self._discovered_buttons)
 
     def rediscover(self) -> bool:
         """Re-scan the Service panel explorer bar. Returns True if >=1 button found."""
