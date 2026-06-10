@@ -231,13 +231,30 @@ def step_click_select_work_orders(context):
     except Exception:
         pass
 
+    # Win32 fallback — try by exact title via EnumChildWindows
     btn_hwnd = _find_child_by_title(sm_hwnd, "Select Work Orders")
-    assert btn_hwnd, (
-        "Could not find the 'Select Work Orders' button "
-        "inside the Service Manager window"
+    if btn_hwnd:
+        _click_hwnd(btn_hwnd)
+        time.sleep(1)
+        return
+
+    # Diagnostic: list every child window title so we can find the real caption.
+    all_child_titles = []
+    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    buf = ctypes.create_unicode_buffer(512)
+
+    def _collect(hwnd, _):
+        ctypes.windll.user32.GetWindowTextW(hwnd, buf, 512)
+        t = buf.value.strip()
+        if t:
+            all_child_titles.append(repr(t))
+        return True
+
+    ctypes.windll.user32.EnumChildWindows(sm_hwnd, WNDENUMPROC(_collect), 0)
+    assert False, (
+        "Could not find the 'Select Work Orders' button.\n"
+        f"All child window titles found: {all_child_titles}"
     )
-    _click_hwnd(btn_hwnd)
-    time.sleep(1)
 
 
 @then("the work order list is displayed")
