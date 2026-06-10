@@ -7,6 +7,7 @@ from pywinauto import Desktop, findwindows
 
 WM_LBUTTONDOWN = 0x0201
 WM_LBUTTONUP   = 0x0202
+BM_CLICK       = 0x00F5  # triggers full click event + state toggle for checkboxes
 BM_GETCHECK    = 0x00F0
 BST_UNCHECKED  = 0
 BST_CHECKED    = 1
@@ -21,10 +22,20 @@ def _activate(hwnd):
 
 
 def _click_hwnd(hwnd):
-    """Send WM_LBUTTONDOWN/UP to hwnd — works for elevated WinForms controls."""
+    """Send WM_LBUTTONDOWN/UP to hwnd — works for elevated WinForms buttons."""
     ctypes.windll.user32.SendMessageW(hwnd, WM_LBUTTONDOWN, 0, 0)
     time.sleep(0.05)
     ctypes.windll.user32.SendMessageW(hwnd, WM_LBUTTONUP, 0, 0)
+    time.sleep(0.3)
+
+
+def _click_checkbox(hwnd):
+    """
+    Toggle a WinForms CheckBox via BM_CLICK.
+    BM_CLICK triggers the full click-event chain (state change + WM_COMMAND)
+    unlike WM_LBUTTONDOWN/UP at (0,0) which may be ignored by some controls.
+    """
+    ctypes.windll.user32.SendMessageW(hwnd, BM_CLICK, 0, 0)
     time.sleep(0.3)
 
 
@@ -98,7 +109,7 @@ def step_check_open_wos(context):
 
     state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
     if state != BST_CHECKED:
-        _click_hwnd(chk_hwnd)
+        _click_checkbox(chk_hwnd)
         state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
         assert state == BST_CHECKED, "Open WO's checkbox did not become checked after clicking"
 
@@ -211,7 +222,7 @@ def step_check_checkbox(context, checkbox_label):
 
     state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
     if state != BST_CHECKED:
-        _click_hwnd(chk_hwnd)
+        _click_checkbox(chk_hwnd)
         state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
         assert state == BST_CHECKED, (
             f"'{checkbox_label}' is still unchecked after clicking it"
@@ -236,7 +247,7 @@ def step_uncheck_checkbox(context, checkbox_label):
 
     state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
     if state == BST_CHECKED:
-        _click_hwnd(chk_hwnd)
+        _click_checkbox(chk_hwnd)
         state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
         assert state == BST_UNCHECKED, (
             f"'{checkbox_label}' is still checked after clicking it"
