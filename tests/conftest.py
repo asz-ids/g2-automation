@@ -22,6 +22,24 @@ def open_g2_application():
     print("\n[Teardown] Test session complete. G2 application remains running.")
 
 
+@pytest.fixture(scope="session")
+def service_screen():
+    """Session fixture — clicks Service and returns a ready ServiceScreen.
+    Requires G2 to be running; the autouse ensure_g2_running fixture in
+    test_service_navigation.py guarantees this before any test in that file."""
+    from screens.service_screen import ServiceScreen
+    screen = ServiceScreen(auto_navigate=True)
+    yield screen
+
+
+@pytest.fixture
+def service_screen_unit():
+    """Unit-test fixture — no live G2 required."""
+    from screens.service_screen import ServiceScreen
+    screen = ServiceScreen(auto_navigate=False)
+    yield screen
+
+
 @pytest.fixture
 def login_screen():
     """Fixture providing a LoginScreen instance."""
