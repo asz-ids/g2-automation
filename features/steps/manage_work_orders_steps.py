@@ -195,6 +195,31 @@ def step_wo_list_displayed(context):
     print(f"  Work order list verified: {count_label}")
 
 
+@step('I uncheck the "{checkbox_label}" checkbox')
+def step_uncheck_checkbox(context, checkbox_label):
+    """
+    Ensure a WinForms CheckBox is unchecked.
+    Uses BM_GETCHECK to read state and only clicks if currently checked.
+    Finds the control by partial-title match via EnumChildWindows — no UIA.
+    """
+    sm_hwnd = context.s.service_manager_hwnd or _find_service_manager_hwnd()
+    assert sm_hwnd, "Service Manager window not found"
+
+    chk_hwnd = _find_child_by_partial_title(sm_hwnd, checkbox_label)
+    assert chk_hwnd, (
+        f"Could not find a checkbox containing '{checkbox_label}' "
+        "inside the Service Manager window"
+    )
+
+    state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
+    if state == BST_CHECKED:
+        _click_hwnd(chk_hwnd)
+        state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
+        assert state == BST_UNCHECKED, (
+            f"'{checkbox_label}' is still checked after clicking it"
+        )
+
+
 @step('the "{checkbox_label}" checkbox is unchecked')
 def step_checkbox_is_unchecked(context, checkbox_label):
     """
