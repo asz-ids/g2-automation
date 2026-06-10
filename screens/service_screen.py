@@ -44,8 +44,6 @@ class ServiceScreen(BaseScreen):
         if not clicked:
             print("[X] ServiceScreen: click_menu_button('Service') failed")
             return False
-        # Refresh nav_hwnd in case NavigatorScreen reconnected during the click
-        self._nav_hwnd = getattr(self._navigator, "_nav_hwnd", None)
         return self._discover_explorer_buttons()
 
     def _discover_explorer_buttons(self) -> bool:
@@ -79,9 +77,11 @@ class ServiceScreen(BaseScreen):
                         f"[OK] Service panel found {len(buttons)} buttons: {buttons}"
                     )
                     return True
-            except Exception:
-                pass
-            time.sleep(0.5)
+            except Exception as e:
+                if attempt == 5:
+                    print(f"[!] ServiceScreen: UIA scan error on final attempt: {e}")
+            if attempt < 5:
+                time.sleep(0.5)
 
         print("[!] ServiceScreen: no explorer bar buttons found after 3 s")
         return False
