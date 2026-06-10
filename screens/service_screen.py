@@ -34,10 +34,6 @@ class ServiceScreen(BaseScreen):
         if auto_navigate:
             self._navigate_and_discover()
 
-    # ------------------------------------------------------------------
-    # Internal — to be implemented in Task 2
-    # ------------------------------------------------------------------
-
     def _navigate_and_discover(self) -> bool:
         """Click btnService then discover the Service explorer bar buttons."""
         clicked = self._navigator.click_menu_button("Service")
@@ -86,10 +82,6 @@ class ServiceScreen(BaseScreen):
         print("[!] ServiceScreen: no explorer bar buttons found after 3 s")
         return False
 
-    # ------------------------------------------------------------------
-    # Public API — to be implemented in Task 3
-    # ------------------------------------------------------------------
-
     def go_to(self, section_name: str) -> bool:
         """
         Navigate to a Service sub-section by explorer bar button title.
@@ -103,7 +95,7 @@ class ServiceScreen(BaseScreen):
         Returns:
             True if the click succeeded, False otherwise
         """
-        if section_name not in self._discovered_buttons:
+        if not self.is_section_available(section_name):
             print(
                 f"[!] ServiceScreen: '{section_name}' not in discovered buttons "
                 f"{self._discovered_buttons} — attempting anyway"

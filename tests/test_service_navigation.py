@@ -113,6 +113,18 @@ def test_get_available_sections(service_screen):
 
 
 @pytest.mark.functional
+def test_is_section_available(service_screen):
+    sections = service_screen.get_available_sections()
+    assert len(sections) > 0, "Precondition: need at least one section"
+    # Exact match
+    assert service_screen.is_section_available(sections[0]) is True
+    # Case-insensitive match
+    assert service_screen.is_section_available(sections[0].lower()) is True
+    # Non-existent section
+    assert service_screen.is_section_available("__nonexistent__") is False
+
+
+@pytest.mark.functional
 def test_rediscover(service_screen):
     result = service_screen.rediscover()
     assert result is True, "rediscover() should return True when ≥1 button found"
