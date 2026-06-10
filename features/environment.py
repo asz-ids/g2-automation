@@ -13,6 +13,7 @@ class _State:
         self.customer_edit = None
         self.table = None
         self.existing_ar_handles = set()
+        self.service_manager_hwnd = None
 
 
 def before_scenario(context, scenario):
