@@ -58,62 +58,56 @@ def _find_service_manager_hwnd():
     return handles[0] if handles else None
 
 
-# ── Checkbox helpers (UIA-based — avoids BM_GETCHECK which doesn't reflect
-#    the true WinForms Checked property for G2's custom checkbox controls) ─────
+# ── Checkbox helpers ──────────────────────────────────────────────────────────
+# UIA hangs for G2 checkboxes (get_toggle_state / click_input block
+# indefinitely). BM_GETCHECK does not reflect the true WinForms state.
+# Solution: find HWND via Win32 EnumChildWindows, click via pywinauto
+# win32-backend click_input() which uses SetCursorPos + mouse_event
+# (pure Win32, no COM).
 
-def _uia_checkbox(sm_hwnd, label):
-    """Return a pywinauto UIA wrapper for the checkbox with the given label."""
-    uia_win = Desktop(backend="uia").window(handle=sm_hwnd)
-    return uia_win.child_window(title=label, control_type="CheckBox")
-
-
-def _get_checkbox_state(sm_hwnd, label):
-    """
-    Return the toggle state of a checkbox: 0 = unchecked, 1 = checked.
-    Uses UIA TogglePattern (FindFirst — safe, does not crash like FindAll).
-    """
-    try:
-        chk = _uia_checkbox(sm_hwnd, label)
-        return chk.get_toggle_state()   # 0 or 1
-    except Exception:
-        pass
-    # Partial-title fallback — try BM_GETCHECK as a last resort
-    chk_hwnd = _find_child_by_partial_title(sm_hwnd, label)
-    if chk_hwnd:
-        BM_GETCHECK = 0x00F0
-        return ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
-    return None
-
-
-def _ensure_checkbox_state(sm_hwnd, label, want_checked: bool):
-    """
-    Set a checkbox to the desired state.
-    1. Reads current state via UIA TogglePattern (get_toggle_state).
-    2. Clicks via UIA click_input() only if the state needs to change.
-    3. Falls back to a blind Win32 click if UIA is unavailable.
-    """
-    desired = 1 if want_checked else 0
-
-    try:
-        chk = _uia_checkbox(sm_hwnd, label)
-        current = chk.get_toggle_state()
-        if current != desired:
-            chk.click_input()
-            time.sleep(0.3)
-        return
-    except Exception:
-        pass
-
-    # Fallback: find by partial title and do a blind UIA click
+def _click_checkbox(sm_hwnd, label):
+    """Find a checkbox by partial title and click it via physical mouse input."""
     chk_hwnd = _find_child_by_partial_title(sm_hwnd, label)
     assert chk_hwnd, (
         f"Could not find checkbox '{label}' inside the Service Manager window"
     )
-    try:
-        Desktop(backend="uia").window(handle=chk_hwnd).click_input()
-    except Exception:
-        _click_hwnd(chk_hwnd)
+    Desktop(backend="win32").window(handle=chk_hwnd).click_input()
     time.sleep(0.3)
+
+
+def _ensure_checkbox_state(sm_hwnd, label, want_checked: bool):
+    """
+    Click a checkbox only if it is not already in the desired state.
+    State is read via BM_GETCHECK (0x00F0); if that returns an unexpected
+    value the click is performed unconditionally (safe — worst case is a
+    double-toggle, which the filter result will catch).
+    """
+    BM_GETCHECK   = 0x00F0
+    BST_UNCHECKED = 0
+    BST_CHECKED   = 1
+
+    chk_hwnd = _find_child_by_partial_title(sm_hwnd, label)
+    assert chk_hwnd, (
+        f"Could not find checkbox '{label}' inside the Service Manager window"
+    )
+
+    state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
+    desired = BST_CHECKED if want_checked else BST_UNCHECKED
+
+    # Only click if state differs from desired OR if BM_GETCHECK returned
+    # something other than 0/1 (unreliable — click anyway).
+    if state != desired:
+        Desktop(backend="win32").window(handle=chk_hwnd).click_input()
+        time.sleep(0.3)
+
+
+def _get_checkbox_state(sm_hwnd, label):
+    """Return BM_GETCHECK value for a checkbox (0=unchecked, 1=checked)."""
+    BM_GETCHECK = 0x00F0
+    chk_hwnd = _find_child_by_partial_title(sm_hwnd, label)
+    if chk_hwnd is None:
+        return None
+    return ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
 
 
 # ── When ──────────────────────────────────────────────────────────────────────
