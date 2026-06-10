@@ -164,7 +164,7 @@ def step_check_open_wos(context):
     _click_hwnd(chk_hwnd)
 
 
-@when('I click "Select Work Orders"')
+@when("I apply the work order filter")
 def step_click_select_work_orders(context):
     """
     Click the 'Select Work Orders' button to apply the filter and

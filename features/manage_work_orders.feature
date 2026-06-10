@@ -14,5 +14,5 @@ Feature: Manage Work Orders
   Scenario: Filter work orders to show open WOs
     Given the "Astra G2 - Service Manager" window is open and visible
     When I check the "Open WO's" filter
-    And I click "Select Work Orders"
+    And I apply the work order filter
     Then the work order list is displayed
