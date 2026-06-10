@@ -29,8 +29,31 @@ def step_navigate_to_work_orders(context):
 
 @then('the "{window_title}" window is open and visible')
 def step_window_is_open_and_visible(context, window_title):
-    handles = findwindows.find_windows(title=window_title)
-    assert handles, f'Window "{window_title}" was not found'
+    # Poll up to 8 s — the Service Manager window may take time to render.
+    # Use title_re (contains) instead of exact title to handle minor variations.
+    import re
+    pattern = re.escape(window_title)
+    handles = []
+    for _ in range(16):
+        handles = findwindows.find_windows(title_re=f".*{pattern}.*")
+        if handles:
+            break
+        time.sleep(0.5)
+
+    if not handles:
+        # Diagnostic: show all top-level window titles to help pinpoint the real name.
+        all_titles = [
+            t for t in (
+                Desktop(backend="win32").window(handle=h).window_text()
+                for h in findwindows.find_windows()
+            )
+            if t.strip()
+        ]
+        assert False, (
+            f'Window matching "{window_title}" was not found after 8 s.\n'
+            f'Visible windows: {all_titles}'
+        )
+
     hwnd = handles[0]
     _activate(hwnd)
     win = Desktop(backend="win32").window(handle=hwnd)
