@@ -3,10 +3,9 @@
 G2 Service Screen — navigation hub for the Service module.
 Sits between NavigatorScreen and module-specific screens.
 """
+import ctypes
 import time
 from typing import Optional
-
-from pywinauto import Desktop
 
 from screens.base_screen import BaseScreen
 from screens.navigator_screen import NavigatorScreen
@@ -44,8 +43,10 @@ class ServiceScreen(BaseScreen):
 
     def _discover_explorer_buttons(self) -> bool:
         """
-        Scan Navigator window descendants for Service explorer bar buttons.
-        Polls up to 3 s (6 x 0.5 s) for the panel to render after navigation.
+        Scan Navigator window child windows for Service explorer bar button titles.
+        Uses Win32 EnumChildWindows to avoid COM/UIA crashes that occur when the
+        Navigator's UIA tree changes after sub-screen navigation.
+        Polls up to 3 s (6 x 0.5 s) for the panel to render.
         Excludes the five main menu items (Sales, Service, Accounting, Admin, Parts).
         Returns True if at least one button title is cached.
         """
@@ -55,27 +56,32 @@ class ServiceScreen(BaseScreen):
             print("[!] ServiceScreen: nav_hwnd not available — discovery skipped")
             return False
 
+        WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
         for attempt in range(6):
+            found_titles = []
+            buf = ctypes.create_unicode_buffer(512)
+
+            def _cb(hwnd, _, _buf=buf, _titles=found_titles):
+                ctypes.windll.user32.GetWindowTextW(hwnd, _buf, 512)
+                title = _buf.value.strip()
+                if (title
+                        and title not in NavigatorScreen.EXPECTED_MENU_ITEMS
+                        and title not in _titles):
+                    _titles.append(title)
+                return True
+
             try:
-                uia_window = Desktop(backend="uia").window(handle=nav_hwnd)
-                buttons = []
-                for btn in uia_window.descendants(control_type="Button"):
-                    try:
-                        title = btn.window_text().strip()
-                        if title and title not in NavigatorScreen.EXPECTED_MENU_ITEMS:
-                            if title not in buttons:
-                                buttons.append(title)
-                    except Exception:
-                        pass
-                if buttons:
-                    self._discovered_buttons = buttons
-                    print(
-                        f"[OK] Service panel found {len(buttons)} buttons: {buttons}"
-                    )
-                    return True
+                ctypes.windll.user32.EnumChildWindows(nav_hwnd, WNDENUMPROC(_cb), 0)
             except Exception as e:
                 if attempt == 5:
-                    print(f"[!] ServiceScreen: UIA scan error on final attempt: {e}")
+                    print(f"[!] ServiceScreen: EnumChildWindows error on final attempt: {e}")
+
+            if found_titles:
+                self._discovered_buttons = found_titles
+                print(f"[OK] Service panel found {len(found_titles)} buttons: {found_titles}")
+                return True
+
             if attempt < 5:
                 time.sleep(0.5)
 
