@@ -9,7 +9,6 @@ WM_LBUTTONDOWN = 0x0201
 WM_LBUTTONUP   = 0x0202
 
 SERVICE_MANAGER_TITLE = "Astra G2 - Service Manager"
-SERVICE_MANAGER_AUTO_ID = "ServiceTaskForm"
 
 
 def _activate(hwnd):
@@ -17,6 +16,48 @@ def _activate(hwnd):
     ctypes.windll.user32.SetForegroundWindow(hwnd)
     time.sleep(0.3)
 
+
+def _click_hwnd(hwnd):
+    """Send WM_LBUTTONDOWN/UP to hwnd — works for elevated WinForms controls."""
+    ctypes.windll.user32.SendMessageW(hwnd, WM_LBUTTONDOWN, 0, 0)
+    time.sleep(0.05)
+    ctypes.windll.user32.SendMessageW(hwnd, WM_LBUTTONUP, 0, 0)
+    time.sleep(0.3)
+
+
+def _enum_children(parent_hwnd):
+    """Yield (hwnd, title, class_name) for every child window under parent_hwnd."""
+    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    buf_t = ctypes.create_unicode_buffer(512)
+    buf_c = ctypes.create_unicode_buffer(512)
+    results = []
+
+    def _cb(hwnd, _):
+        ctypes.windll.user32.GetWindowTextW(hwnd, buf_t, 512)
+        ctypes.windll.user32.GetClassNameW(hwnd, buf_c, 512)
+        results.append((hwnd, buf_t.value.strip(), buf_c.value.strip()))
+        return True
+
+    ctypes.windll.user32.EnumChildWindows(parent_hwnd, WNDENUMPROC(_cb), 0)
+    return results
+
+
+def _find_child_by_partial_title(parent_hwnd, partial_title):
+    """Return the HWND of the first child whose title contains partial_title (case-insensitive)."""
+    needle = partial_title.lower()
+    for hwnd, title, _ in _enum_children(parent_hwnd):
+        if needle in title.lower():
+            return hwnd
+    return None
+
+
+def _find_service_manager_hwnd():
+    """Return the HWND of the Astra G2 - Service Manager window, or None."""
+    handles = findwindows.find_windows(title_re=".*Service Manager.*")
+    return handles[0] if handles else None
+
+
+# ── When ──────────────────────────────────────────────────────────────────────
 
 @when('I navigate to "Work Orders" from the Service menu')
 def step_navigate_to_work_orders(context):
@@ -31,113 +72,68 @@ def step_navigate_to_work_orders(context):
     time.sleep(1)
 
 
-def _find_service_manager_hwnd():
-    """Return the HWND of the Astra G2 - Service Manager window, or None."""
-    handles = findwindows.find_windows(title_re=".*Service Manager.*")
-    return handles[0] if handles else None
-
-
-def _find_child_by_auto_id(parent_hwnd, auto_id):
+@when('I check the "Open WO\'s" filter')
+def step_check_open_wos(context):
     """
-    Walk the Win32 child-window tree to find a window whose automation_id
-    matches auto_id. Returns the HWND or None.
+    Click the 'Open WO's' checkbox inside the Selection Criteria group.
+    Uses partial-title Win32 search — avoids UIA descendants crash and
+    class-name hash variations across G2 builds.
+
+    UIA path: ServiceTaskForm -> tabControlMaster
+      -> WorkOrderManagerControl -> tableLayoutPanelLeft
+      -> gbCriteria -> chkOpenWo (title "Open WO's")
     """
-    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-    buf = ctypes.create_unicode_buffer(512)
-    found = []
+    sm_hwnd = context.s.service_manager_hwnd or _find_service_manager_hwnd()
+    assert sm_hwnd, "Service Manager window not found"
+    _activate(sm_hwnd)
+    time.sleep(0.5)  # allow tab content to finish rendering
 
-    def _cb(hwnd, _):
-        # GetWindowTextW returns the window caption; for WinForms controls the
-        # automation_id is the .Name property which may differ.  Fall back to
-        # comparing the window class against the known WinForms BUTTON class
-        # and the caption to the control title.
-        ctypes.windll.user32.GetWindowTextW(hwnd, buf, 512)
-        if buf.value.strip() == auto_id:
-            found.append(hwnd)
-            return False  # stop enumeration
-        return True
+    chk_hwnd = _find_child_by_partial_title(sm_hwnd, "Open WO")
+    if chk_hwnd is None:
+        children = _enum_children(sm_hwnd)
+        labelled = [f"{repr(t)}[{c}]" for _, t, c in children if t]
+        assert False, (
+            "Could not find a child containing 'Open WO'.\n"
+            f"All labelled children ({len(labelled)}): {labelled}"
+        )
 
-    ctypes.windll.user32.EnumChildWindows(parent_hwnd, WNDENUMPROC(_cb), 0)
-    return found[0] if found else None
+    _click_hwnd(chk_hwnd)
 
 
-def _find_child_by_title(parent_hwnd, title):
-    """Find the first child window whose caption matches title (exact)."""
-    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-    buf = ctypes.create_unicode_buffer(512)
-    found = []
+@when("I apply the work order filter")
+def step_click_select_work_orders(context):
+    """
+    Click the 'Select Work Orders' button to apply the filter.
+    Uses partial-title Win32 search for robustness.
+    """
+    sm_hwnd = context.s.service_manager_hwnd or _find_service_manager_hwnd()
+    assert sm_hwnd, "Service Manager window not found"
+    _activate(sm_hwnd)
 
-    def _cb(hwnd, _):
-        ctypes.windll.user32.GetWindowTextW(hwnd, buf, 512)
-        if buf.value.strip() == title:
-            found.append(hwnd)
-            return False
-        return True
+    btn_hwnd = _find_child_by_partial_title(sm_hwnd, "Select Work Order")
+    if btn_hwnd is None:
+        children = _enum_children(sm_hwnd)
+        labelled = [f"{repr(t)}[{c}]" for _, t, c in children if t]
+        assert False, (
+            "Could not find a child containing 'Select Work Order'.\n"
+            f"All labelled children ({len(labelled)}): {labelled}"
+        )
 
-    ctypes.windll.user32.EnumChildWindows(parent_hwnd, WNDENUMPROC(_cb), 0)
-    return found[0] if found else None
-
-
-def _find_child_by_class_and_title(parent_hwnd, class_name, title):
-    """Find the first child whose Win32 class name AND window text both match."""
-    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-    title_buf = ctypes.create_unicode_buffer(512)
-    class_buf = ctypes.create_unicode_buffer(512)
-    found = []
-
-    def _cb(hwnd, _):
-        ctypes.windll.user32.GetWindowTextW(hwnd, title_buf, 512)
-        ctypes.windll.user32.GetClassNameW(hwnd, class_buf, 512)
-        if title_buf.value.strip() == title and class_name in class_buf.value:
-            found.append(hwnd)
-            return False
-        return True
-
-    ctypes.windll.user32.EnumChildWindows(parent_hwnd, WNDENUMPROC(_cb), 0)
-    return found[0] if found else None
+    _click_hwnd(btn_hwnd)
+    time.sleep(1)
 
 
-def _collect_children_by_class(parent_hwnd, class_name):
-    """Return titles of all child windows whose class name contains class_name."""
-    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-    title_buf = ctypes.create_unicode_buffer(512)
-    class_buf = ctypes.create_unicode_buffer(512)
-    titles = []
-
-    def _cb(hwnd, _):
-        ctypes.windll.user32.GetClassNameW(hwnd, class_buf, 512)
-        if class_name in class_buf.value:
-            ctypes.windll.user32.GetWindowTextW(hwnd, title_buf, 512)
-            titles.append(repr(title_buf.value.strip()))
-        return True
-
-    ctypes.windll.user32.EnumChildWindows(parent_hwnd, WNDENUMPROC(_cb), 0)
-    return titles
-
-
-def _click_hwnd(hwnd):
-    """Send WM_LBUTTONDOWN/UP to hwnd — works for elevated WinForms controls."""
-    ctypes.windll.user32.SendMessageW(hwnd, WM_LBUTTONDOWN, 0, 0)
-    time.sleep(0.05)
-    ctypes.windll.user32.SendMessageW(hwnd, WM_LBUTTONUP, 0, 0)
-    time.sleep(0.3)
-
-
-# ── Given ─────────────────────────────────────────────────────────────────────
+# ── Given / Then ──────────────────────────────────────────────────────────────
 
 @given('the "{window_title}" window is open and visible')
 def step_given_window_open(context, window_title):
-    """Alias for the Then step — used as a Given in subsequent scenarios."""
+    """Alias so subsequent scenarios can use this as a Given."""
     step_window_is_open_and_visible(context, window_title)
 
 
-# ── Then ──────────────────────────────────────────────────────────────────────
-
 @then('the "{window_title}" window is open and visible')
 def step_window_is_open_and_visible(context, window_title):
-    # Poll up to 8 s — the Service Manager window may take time to render.
-    # Use title_re (contains) instead of exact title to handle minor variations.
-    import re
+    """Poll up to 8 s for the window; use title_re to handle minor title variations."""
     pattern = re.escape(window_title)
     handles = []
     for _ in range(16):
@@ -147,134 +143,33 @@ def step_window_is_open_and_visible(context, window_title):
         time.sleep(0.5)
 
     if not handles:
-        # Diagnostic: show all top-level window titles to help pinpoint the real name.
         all_titles = [
-            t for t in (
-                Desktop(backend="win32").window(handle=h).window_text()
-                for h in findwindows.find_windows()
-            )
-            if t.strip()
+            Desktop(backend="win32").window(handle=h).window_text()
+            for h in findwindows.find_windows()
         ]
         assert False, (
-            f'Window matching "{window_title}" was not found after 8 s.\n'
-            f'Visible windows: {all_titles}'
+            f'Window matching "{window_title}" not found after 8 s.\n'
+            f'Visible windows: {[t for t in all_titles if t.strip()]}'
         )
 
     hwnd = handles[0]
     _activate(hwnd)
     win = Desktop(backend="win32").window(handle=hwnd)
-    assert win.is_visible(), f'Window "{window_title}" exists but is not visible'
+    assert win.is_visible(), f'Window "{window_title}" found but not visible'
     context.s.service_manager_hwnd = hwnd
-
-
-@when('I check the "Open WO\'s" filter')
-def step_check_open_wos(context):
-    """
-    Click the 'Open WO's' checkbox (auto_id=chkOpenWo) inside the
-    Selection Criteria group on the Manage Work Orders tab.
-
-    UIA path:
-      ServiceTaskForm -> tabControlMaster -> WorkOrderManagerControl
-        -> tableLayoutPanelLeft -> gbCriteria -> chkOpenWo
-    """
-    sm_hwnd = context.s.service_manager_hwnd or _find_service_manager_hwnd()
-    assert sm_hwnd, "Service Manager window not found"
-    _activate(sm_hwnd)
-
-    # Try UIA first — direct lookup by automation_id avoids EnumChildWindows
-    # depth limitations on deeply nested WinForms controls.
-    # Win32 backend is the most reliable for WinForms — uses FindWindowEx,
-    # no COM/UIA involved.  class_name narrows the search to BUTTON controls.
-    win32_win = Desktop(backend="win32").window(handle=sm_hwnd)
-    chk_class = "WindowsForms10.BUTTON.app.0.392a42d_r8_ad1"
-    for title_try in ("Open WO's", "Open WO’s"):  # straight + curly apostrophe
-        try:
-            chk = win32_win.child_window(title=title_try, class_name=chk_class)
-            chk.click_input()
-            time.sleep(0.3)
-            return
-        except Exception:
-            pass
-
-    # Fallback: send WM_LBUTTONDOWN/UP directly to the HWND.
-    chk_hwnd = _find_child_by_class_and_title(sm_hwnd, chk_class, "Open WO's")
-    if chk_hwnd is None:
-        chk_hwnd = _find_child_by_class_and_title(sm_hwnd, chk_class, "Open WO’s")
-
-    if chk_hwnd is None:
-        # Diagnostic: list all BUTTON-class child titles to find the real caption.
-        all_btn_titles = _collect_children_by_class(sm_hwnd, chk_class)
-        assert False, (
-            "Could not find 'Open WO\\'s' checkbox.\n"
-            f"BUTTON-class children found: {all_btn_titles}"
-        )
-
-    _click_hwnd(chk_hwnd)
-
-
-@when("I apply the work order filter")
-def step_click_select_work_orders(context):
-    """
-    Click the 'Select Work Orders' button to apply the filter and
-    load the matching work order list.
-    """
-    sm_hwnd = context.s.service_manager_hwnd or _find_service_manager_hwnd()
-    assert sm_hwnd, "Service Manager window not found"
-    _activate(sm_hwnd)
-
-    uia_win = Desktop(backend="uia").window(handle=sm_hwnd)
-    try:
-        btn = uia_win.child_window(title="Select Work Orders", control_type="Button")
-        btn.click_input()
-        time.sleep(1)
-        return
-    except Exception:
-        pass
-
-    # Win32 fallback — try by exact title via EnumChildWindows
-    btn_hwnd = _find_child_by_title(sm_hwnd, "Select Work Orders")
-    if btn_hwnd:
-        _click_hwnd(btn_hwnd)
-        time.sleep(1)
-        return
-
-    # Diagnostic: list every child window title so we can find the real caption.
-    all_child_titles = []
-    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-    buf = ctypes.create_unicode_buffer(512)
-
-    def _collect(hwnd, _):
-        ctypes.windll.user32.GetWindowTextW(hwnd, buf, 512)
-        t = buf.value.strip()
-        if t:
-            all_child_titles.append(repr(t))
-        return True
-
-    ctypes.windll.user32.EnumChildWindows(sm_hwnd, WNDENUMPROC(_collect), 0)
-    assert False, (
-        "Could not find the 'Select Work Orders' button.\n"
-        f"All child window titles found: {all_child_titles}"
-    )
 
 
 @then("the work order list is displayed")
 def step_wo_list_displayed(context):
-    """
-    Verify that at least one row appears in the Work Orders grid after
-    applying the filter.  The list control sits inside WorkOrderManagerControl
-    — we check that any child with list-row content is present.
-    """
+    """Verify the WO grid has at least one row after applying the filter."""
     sm_hwnd = context.s.service_manager_hwnd or _find_service_manager_hwnd()
     assert sm_hwnd, "Service Manager window not found"
 
     uia_win = Desktop(backend="uia").window(handle=sm_hwnd)
     try:
-        # The WO grid is typically a DataGridView or ListView.
-        # Any DataItem or ListItem child confirms data was loaded.
         rows = uia_win.descendants(control_type="DataItem")
         if not rows:
             rows = uia_win.descendants(control_type="ListItem")
         assert rows, "Work order list appears empty after applying the filter"
-        return
     except Exception as exc:
         assert False, f"Could not inspect the work order list: {exc}"
