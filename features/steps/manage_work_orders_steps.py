@@ -148,17 +148,21 @@ def step_check_open_wos(context):
     # depth limitations on deeply nested WinForms controls.
     uia_win = Desktop(backend="uia").window(handle=sm_hwnd)
     try:
-        chk = uia_win.child_window(auto_id="chkOpenWo", control_type="CheckBox")
+        chk = uia_win.child_window(
+            title="Open WO's",
+            class_name="WindowsForms10.BUTTON.app.0.392a42d_r8_ad1",
+        )
         chk.click_input()
         time.sleep(0.3)
         return
     except Exception:
         pass
 
-    # Fallback: find by window caption "Open WO's" in the Win32 hierarchy.
+    # Fallback: find by window caption in the Win32 hierarchy.
     chk_hwnd = _find_child_by_title(sm_hwnd, "Open WO's")
     assert chk_hwnd, (
-        "Could not find the 'Open WO\\'s' checkbox (auto_id=chkOpenWo) "
+        "Could not find the 'Open WO\\'s' checkbox "
+        "(class=WindowsForms10.BUTTON.app.0.392a42d_r8_ad1) "
         "inside the Service Manager window"
     )
     _click_hwnd(chk_hwnd)
