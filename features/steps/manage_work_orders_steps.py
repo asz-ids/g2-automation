@@ -2,7 +2,7 @@ import ctypes
 import re
 import time
 
-from behave import given, when, then
+from behave import given, when, then, step
 from pywinauto import Desktop, findwindows
 
 WM_LBUTTONDOWN = 0x0201
@@ -195,7 +195,7 @@ def step_wo_list_displayed(context):
     print(f"  Work order list verified: {count_label}")
 
 
-@then('the "{checkbox_label}" checkbox is unchecked')
+@step('the "{checkbox_label}" checkbox is unchecked')
 def step_checkbox_is_unchecked(context, checkbox_label):
     """
     Assert that a WinForms CheckBox is unchecked using BM_GETCHECK.
