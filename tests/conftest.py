@@ -25,8 +25,10 @@ def open_g2_application():
 @pytest.fixture(scope="session")
 def service_screen():
     """Session fixture — clicks Service and returns a ready ServiceScreen.
-    Requires G2 to be running; the autouse ensure_g2_running fixture in
-    test_service_navigation.py guarantees this before any test in that file."""
+    Requires G2 to be running. When used from test_service_navigation.py,
+    the autouse ensure_g2_running fixture in that file ensures G2 is up
+    first. Other test files that request this fixture must ensure G2 is
+    running themselves before using it."""
     from screens.service_screen import ServiceScreen
     screen = ServiceScreen(auto_navigate=True)
     yield screen
