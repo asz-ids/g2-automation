@@ -43,10 +43,11 @@ def _enum_children(parent_hwnd):
 
 
 def _find_child_by_partial_title(parent_hwnd, partial_title):
-    """Return the HWND of the first child whose title contains partial_title (case-insensitive)."""
-    needle = partial_title.lower()
+    """Return the HWND of the first child whose title contains partial_title (case-insensitive).
+    Strips Win32 keyboard-accelerator ampersands (e.g. 'Se&lect' → 'Select') before comparing."""
+    needle = partial_title.lower().replace("&", "")
     for hwnd, title, _ in _enum_children(parent_hwnd):
-        if needle in title.lower():
+        if needle in title.lower().replace("&", ""):
             return hwnd
     return None
 
