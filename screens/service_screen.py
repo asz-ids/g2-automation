@@ -3,9 +3,10 @@
 G2 Service Screen — navigation hub for the Service module.
 Sits between NavigatorScreen and module-specific screens.
 """
-import ctypes
 import time
 from typing import Optional
+
+from pywinauto import Desktop  # used for UIA child_window probes (FindFirst, not FindAll)
 
 from screens.base_screen import BaseScreen
 from screens.navigator_screen import NavigatorScreen
@@ -17,6 +18,19 @@ class ServiceScreen(BaseScreen):
     Clicks the Service menu button, discovers the explorer bar buttons,
     and exposes go_to() + named shortcuts for each sub-section.
     """
+
+    # Known G2 Service explorer bar button titles.
+    # Discovery probes these via UIA FindFirst (child_window) — avoids
+    # the fatal COM crash caused by FindAll/descendants.
+    KNOWN_SECTIONS = [
+        "Work Orders",
+        "Estimates",
+        "Appointments",
+        "Labor Scheduler",
+        "Flat Rate Manager",
+        "Doc Manager",
+        "Take AR Payments",
+    ]
 
     def __init__(
         self,
@@ -39,18 +53,14 @@ class ServiceScreen(BaseScreen):
         if not clicked:
             print("[X] ServiceScreen: click_menu_button('Service') failed")
             return False
-        # G2 creates explorer bar HWNDs asynchronously — wait before scanning.
-        time.sleep(2)
         return self._discover_explorer_buttons()
 
     def _discover_explorer_buttons(self) -> bool:
         """
-        Scan Navigator window child windows for Service explorer bar button titles.
-        Uses Win32 EnumChildWindows to avoid COM/UIA crashes that occur when the
-        Navigator's UIA tree changes after sub-screen navigation.
-        Polls up to 3 s (6 x 0.5 s) for the panel to render.
-        Excludes the five main menu items (Sales, Service, Accounting, Admin, Parts).
-        Returns True if at least one button title is cached.
+        Probe KNOWN_SECTIONS via UIA child_window().exists() (FindFirst).
+        Avoids descendants()/FindAll which causes a fatal COM crash (0x80040155).
+        Polls up to 10 s (20 × 0.5 s) for buttons to appear after navigation.
+        Returns True if at least one known button is found.
         """
         self._discovered_buttons = []
         nav_hwnd = getattr(self._navigator, "_nav_hwnd", None)
@@ -58,36 +68,29 @@ class ServiceScreen(BaseScreen):
             print("[!] ServiceScreen: nav_hwnd not available — discovery skipped")
             return False
 
-        WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-
-        for attempt in range(20):  # 20 × 0.5 s = 10 s max (after the 2 s pre-wait)
-            found_titles = []
-            buf = ctypes.create_unicode_buffer(512)
-
-            def _cb(hwnd, _, _buf=buf, _titles=found_titles):
-                ctypes.windll.user32.GetWindowTextW(hwnd, _buf, 512)
-                title = _buf.value.strip()
-                if (title
-                        and title not in NavigatorScreen.EXPECTED_MENU_ITEMS
-                        and title not in _titles):
-                    _titles.append(title)
-                return True
-
+        for attempt in range(20):
             try:
-                ctypes.windll.user32.EnumChildWindows(nav_hwnd, WNDENUMPROC(_cb), 0)
+                uia_window = Desktop(backend="uia").window(handle=nav_hwnd)
+                found = []
+                for name in self.KNOWN_SECTIONS:
+                    try:
+                        if uia_window.child_window(
+                            title=name, control_type="Button"
+                        ).exists(timeout=0):
+                            found.append(name)
+                    except Exception:
+                        pass
+                if found:
+                    self._discovered_buttons = found
+                    print(f"[OK] Service panel found {len(found)} buttons: {found}")
+                    return True
             except Exception as e:
-                if attempt == 5:
-                    print(f"[!] ServiceScreen: EnumChildWindows error on final attempt: {e}")
-
-            if found_titles:
-                self._discovered_buttons = found_titles
-                print(f"[OK] Service panel found {len(found_titles)} buttons: {found_titles}")
-                return True
-
+                if attempt == 19:
+                    print(f"[!] ServiceScreen: UIA probe error on final attempt: {e}")
             if attempt < 19:
                 time.sleep(0.5)
 
-        print("[!] ServiceScreen: no explorer bar buttons found after 3 s")
+        print("[!] ServiceScreen: no explorer bar buttons found after 10 s")
         return False
 
     def go_to(self, section_name: str) -> bool:
