@@ -7,6 +7,9 @@ from pywinauto import Desktop, findwindows
 
 WM_LBUTTONDOWN = 0x0201
 WM_LBUTTONUP   = 0x0202
+BM_GETCHECK    = 0x00F0
+BST_UNCHECKED  = 0
+BST_CHECKED    = 1
 
 SERVICE_MANAGER_TITLE = "Astra G2 - Service Manager"
 
@@ -190,3 +193,27 @@ def step_wo_list_displayed(context):
         f"Work order count is zero or unreadable: {repr(count_label)}"
     )
     print(f"  Work order list verified: {count_label}")
+
+
+@then('the "{checkbox_label}" checkbox is unchecked')
+def step_checkbox_is_unchecked(context, checkbox_label):
+    """
+    Assert that a WinForms CheckBox is unchecked using BM_GETCHECK.
+    Finds the control by partial-title match via EnumChildWindows — no UIA.
+
+    BM_GETCHECK returns: 0 = unchecked, 1 = checked, 2 = indeterminate.
+    """
+    sm_hwnd = context.s.service_manager_hwnd or _find_service_manager_hwnd()
+    assert sm_hwnd, "Service Manager window not found"
+
+    chk_hwnd = _find_child_by_partial_title(sm_hwnd, checkbox_label)
+    assert chk_hwnd, (
+        f"Could not find a checkbox containing '{checkbox_label}' "
+        "inside the Service Manager window"
+    )
+
+    state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
+    assert state == BST_UNCHECKED, (
+        f"Expected '{checkbox_label}' to be unchecked (0) but got state={state} "
+        f"({'checked' if state == BST_CHECKED else 'indeterminate'})"
+    )

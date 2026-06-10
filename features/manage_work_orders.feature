@@ -16,3 +16,4 @@ Feature: Manage Work Orders
     When I check the "Open WO's" filter
     And I apply the work order filter
     Then the work order list is displayed
+    And the "Completed Within" checkbox is unchecked
