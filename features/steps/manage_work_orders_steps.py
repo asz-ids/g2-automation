@@ -162,15 +162,31 @@ def step_window_is_open_and_visible(context, window_title):
 
 @then("the work order list is displayed")
 def step_wo_list_displayed(context):
-    """Verify the WO grid has at least one row after applying the filter."""
+    """
+    Verify the WO list is populated after applying the filter.
+    Reads the 'N Work Orders Selected' status label via Win32 EnumChildWindows
+    — avoids UIA descendants() which causes a fatal COM crash (0x80040155).
+    """
     sm_hwnd = context.s.service_manager_hwnd or _find_service_manager_hwnd()
     assert sm_hwnd, "Service Manager window not found"
 
-    uia_win = Desktop(backend="uia").window(handle=sm_hwnd)
-    try:
-        rows = uia_win.descendants(control_type="DataItem")
-        if not rows:
-            rows = uia_win.descendants(control_type="ListItem")
-        assert rows, "Work order list appears empty after applying the filter"
-    except Exception as exc:
-        assert False, f"Could not inspect the work order list: {exc}"
+    # The WO Manager shows a label like "9552 Work Orders Selected (...)"
+    # after Select Work Orders is clicked.  Find it among all child titles.
+    children = _enum_children(sm_hwnd)
+    count_label = next(
+        (title for _, title, _ in children if "Work Orders Selected" in title),
+        None,
+    )
+    assert count_label is not None, (
+        "Could not find 'Work Orders Selected' count label — "
+        "filter may not have been applied.\n"
+        f"Labelled children: {[t for _, t, _ in children if t]}"
+    )
+
+    # Extract the leading number and confirm it is > 0.
+    import re as _re
+    match = _re.match(r"(\d+)", count_label.strip())
+    assert match and int(match.group(1)) > 0, (
+        f"Work order count is zero or unreadable: {repr(count_label)}"
+    )
+    print(f"  Work order list verified: {count_label}")
