@@ -79,13 +79,8 @@ def step_navigate_to_work_orders(context):
 @when('I check the "Open WO\'s" filter')
 def step_check_open_wos(context):
     """
-    Click the 'Open WO's' checkbox inside the Selection Criteria group.
-    Uses partial-title Win32 search — avoids UIA descendants crash and
-    class-name hash variations across G2 builds.
-
-    UIA path: ServiceTaskForm -> tabControlMaster
-      -> WorkOrderManagerControl -> tableLayoutPanelLeft
-      -> gbCriteria -> chkOpenWo (title "Open WO's")
+    Ensure the 'Open WO's' checkbox is checked.
+    Uses BM_GETCHECK — only clicks if currently unchecked.
     """
     sm_hwnd = context.s.service_manager_hwnd or _find_service_manager_hwnd()
     assert sm_hwnd, "Service Manager window not found"
@@ -101,7 +96,11 @@ def step_check_open_wos(context):
             f"All labelled children ({len(labelled)}): {labelled}"
         )
 
-    _click_hwnd(chk_hwnd)
+    state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
+    if state != BST_CHECKED:
+        _click_hwnd(chk_hwnd)
+        state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
+        assert state == BST_CHECKED, "Open WO's checkbox did not become checked after clicking"
 
 
 @when("I apply the work order filter")
@@ -195,6 +194,30 @@ def step_wo_list_displayed(context):
     print(f"  Work order list verified: {count_label}")
 
 
+@step('I check the "{checkbox_label}" checkbox')
+def step_check_checkbox(context, checkbox_label):
+    """
+    Ensure a WinForms CheckBox is checked.
+    Uses BM_GETCHECK — only clicks if currently unchecked.
+    """
+    sm_hwnd = context.s.service_manager_hwnd or _find_service_manager_hwnd()
+    assert sm_hwnd, "Service Manager window not found"
+
+    chk_hwnd = _find_child_by_partial_title(sm_hwnd, checkbox_label)
+    assert chk_hwnd, (
+        f"Could not find a checkbox containing '{checkbox_label}' "
+        "inside the Service Manager window"
+    )
+
+    state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
+    if state != BST_CHECKED:
+        _click_hwnd(chk_hwnd)
+        state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
+        assert state == BST_CHECKED, (
+            f"'{checkbox_label}' is still unchecked after clicking it"
+        )
+
+
 @step('I uncheck the "{checkbox_label}" checkbox')
 def step_uncheck_checkbox(context, checkbox_label):
     """
@@ -218,6 +241,25 @@ def step_uncheck_checkbox(context, checkbox_label):
         assert state == BST_UNCHECKED, (
             f"'{checkbox_label}' is still checked after clicking it"
         )
+
+
+@step('the "{checkbox_label}" checkbox is checked')
+def step_checkbox_is_checked(context, checkbox_label):
+    """Assert a WinForms CheckBox is checked using BM_GETCHECK — no UIA."""
+    sm_hwnd = context.s.service_manager_hwnd or _find_service_manager_hwnd()
+    assert sm_hwnd, "Service Manager window not found"
+
+    chk_hwnd = _find_child_by_partial_title(sm_hwnd, checkbox_label)
+    assert chk_hwnd, (
+        f"Could not find a checkbox containing '{checkbox_label}' "
+        "inside the Service Manager window"
+    )
+
+    state = ctypes.windll.user32.SendMessageW(chk_hwnd, BM_GETCHECK, 0, 0)
+    assert state == BST_CHECKED, (
+        f"Expected '{checkbox_label}' to be checked (1) but got state={state} "
+        f"({'unchecked' if state == BST_UNCHECKED else 'indeterminate'})"
+    )
 
 
 @step('the "{checkbox_label}" checkbox is unchecked')
